@@ -1,0 +1,82 @@
+package net.andimiller.trek.migrations
+
+import cats.implicits.*
+import cats.effect.*
+import cats.effect.std.Console
+import cats.effect.cps.*
+import fs2.io.file.{Files, Path}
+import net.andimiller.trek.db.MigrationStatusRepository
+import skunk.exception.PostgresErrorException
+import skunk.util.Origin
+import skunk.{Fragment, Session, Void}
+
+trait MigrationService[F[_]] {
+  def migrate(folder: Path): F[ExitCode]
+}
+
+object MigrationService {
+
+  def create[F[_]: Async: Files: Console](
+      migrationDb: MigrationStatusRepository[F],
+      loader: MigrationLoader[F],
+      db: Resource[F, Session[F]]
+  ) =
+    new MigrationService[F] {
+
+      override def migrate(folder: Path): F[ExitCode] = async[F] {
+        if (Files[F].isDirectory(folder).await) { // we only run migrations stored in a directory
+          val migrationJobName = folder.fileName.toString // the name of the migration job is the directory name
+          given Ordering[Path] = Ordering.by(_.fileName.toString)
+          // load migrations from disk
+          val migrations       = (LazyList from 1)
+            .zip(
+              Files[F].list(folder).filter(_.toString.endsWith(".sql")).compile.toList.await.sorted
+            )
+          val expectedVersion  = migrations.map(_._1).maxOption.getOrElse(0)
+          Console[F].println(s"Loaded $expectedVersion migrations from disk").await
+
+          // check the database's current version
+          val currentVersion = migrationDb.getHistory(migrationJobName).map(_.last).await.version
+
+          if (currentVersion < expectedVersion) {
+            Console[F].println("Would like to perform migrations").await
+
+            // loop over the migrations we want to run
+            for (id <- (currentVersion + 1) to expectedVersion) {
+              val migrationPath = migrations(id - 1)._2
+              val migrationName = migrationPath.fileName.toString.stripSuffix(".sql")
+              Console[F].println(s"Migrating version $id  - $migrationName").await
+
+              val sql      = Files[F].readUtf8(migrationPath).compile.foldMonoid.await
+              val fragment = Fragment(List(Left(sql)), Void.codec, Origin.unknown)
+
+              val result = db
+                .use { session =>
+                  session.execute(fragment.command)
+                }
+                .attempt
+                .await
+
+              result match
+                case Left(e)      =>
+                  Console[F].errorln(s"Failed migration $id - $migrationName\n" + e.toString).await
+                // todo halt early
+                case Right(value) =>
+                  Console[F].println(s"Migration succeeded with $value").await
+                  migrationDb.updateStatus(migrationJobName, id, migrationName).await
+            }
+
+            ExitCode.Success
+          } else {
+            Console[F].println("Table is up to date").await
+            ExitCode.Success
+          }
+
+        } else {
+          Console[F].errorln(s"This tool must be run against a folder").await
+          ExitCode.Error
+        }
+      }
+    }
+
+}
