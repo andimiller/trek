@@ -20,6 +20,9 @@ object MigrationDiffer {
           show"""Remote database is missing these migrations found locally:
                 |  ${remoteMissing.map(_.show).mkString("\n  ")}
                 |""".stripMargin
+        ),
+        Option.when(localMissing.isEmpty && remoteMissing.isEmpty)(
+          show"""Database is in sync"""
         )
       ).flatten.mkString("\n")
     }
