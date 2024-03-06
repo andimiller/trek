@@ -20,18 +20,18 @@ object MigrationRunner {
     override def migrate(family: String, migrations: List[LocalMigration]): F[Unit] =
       migrations.traverse { migration =>
         for
-          _       <- Console[F].println(show"Performing migration $migration")
+          _       <- Console[F].println(show"Performing migration ${migration.toMigration}")
           sql     <- ReadFile[F].readAll(migration.file)
           fragment = Fragment(List(Left(sql)), Void.codec, Origin.unknown)
           result  <- db.use { session =>
                        session.execute(fragment.command)
                      }.attempt
-          _       <- Console[F].println(s"  $result")
+          _       <- Console[F].println(s"  result: $result")
           _       <- result match
                        case Left(value) =>
                          Console[F].errorln(value) *> Async[F].raiseError(new Throwable("Migration failed"))
                        case Right(_)    =>
                          status.updateStatus(family, migration.version, migration.name, migration.hash)
         yield ()
-      }.void
+      }.void *> Console[F].println("Migrations performed successfully")
 }

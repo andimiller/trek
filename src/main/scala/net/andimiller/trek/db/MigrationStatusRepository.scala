@@ -21,11 +21,12 @@ object MigrationStatusRepository {
     val provisionMigrationStatusTable: Command[Void] =
       sql"""
             CREATE TABLE IF NOT EXISTS trek_migration_status (
-              family VARCHAR(255) NOT NULL PRIMARY KEY,
+              family VARCHAR(255) NOT NULL,
               time TIMESTAMPTZ NOT NULL,
               version INT4 NOT NULL,
               version_name VARCHAR(255) NOT NULL,
-              version_hash VARCHAR(8) NOT NULL
+              version_hash VARCHAR(8) NOT NULL,
+              PRIMARY KEY(family, version)
             );
          """.command
 
