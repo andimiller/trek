@@ -7,7 +7,7 @@ import cats.data.ValidatedNel
 import fs2.io.file.Path
 import net.andimiller.trek.effects.ReadFile
 
-case class LocalMigration(version: Long, name: String, file: Path, hash: String) {
+case class LocalMigration(version: Int, name: String, file: Path, hash: String) {
   def toMigration: Migration = Migration(version, name, hash)
 }
 

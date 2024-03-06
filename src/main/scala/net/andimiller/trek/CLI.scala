@@ -32,10 +32,15 @@ object CLI {
 
   enum CliCommand:
     case Check(dbConfig: DBConfig, folder: Path)
+    case Migrate(dbConfig: DBConfig, folder: Path)
 
   val check: Opts[CliCommand.Check] = Opts.subcommand(Command("check", "check a database's migration state vs a folder of migrations") {
     (dbConfig, folder).mapN(CliCommand.Check.apply)
   })
 
-  val cli: Command[CliCommand] = Command("trek", "postgres migration tool")(check)
+  val migrate: Opts[CliCommand.Migrate] = Opts.subcommand(Command("migrate", "migrate a database") {
+    (dbConfig, folder).mapN(CliCommand.Migrate.apply)
+  })
+
+  val cli: Command[CliCommand] = Command("trek", "postgres migration tool")(check orElse migrate)
 }

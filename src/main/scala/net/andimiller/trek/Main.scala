@@ -23,9 +23,30 @@ object Main extends EpollApp:
         Console[F].println(value).as(ExitCode.Error)
       case Right(mode) =>
         mode match
-          case CliCommand.Check(db, folder) =>
+          case CliCommand.Check(db, folder)   =>
             for
               _              <- Console[F].println(s"Validating $folder")
+              session         = Session.single(
+                                  host = db.host,
+                                  port = db.port,
+                                  database = db.database,
+                                  user = db.user,
+                                  password = db.password
+                                )
+              migrationStatus = MigrationStatusRepository.create(session)
+              loader          = MigrationLoader.create[F]
+              _              <- migrationStatus.provisionMigrationStatusTable
+              local          <- loader.load(folder).flatMap {
+                                  case Validated.Valid(a)   => a.pure[F]
+                                  case Validated.Invalid(e) => Console[F].errorln(e.show) *> Async[F].raiseError(new Throwable("boom"))
+                                }
+              remote         <- migrationStatus.getHistory(folder.toString)
+              diff            = MigrationDiffer.diff(local, remote)
+              _              <- Console[F].println(diff.show)
+            yield ExitCode.Success
+          case CliCommand.Migrate(db, folder) =>
+            for
+              _              <- Console[F].println(s"Applying $folder")
               session         = Session.single(
                                   host = db.host,
                                   port = db.port,
