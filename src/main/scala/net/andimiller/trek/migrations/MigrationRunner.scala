@@ -18,7 +18,7 @@ trait MigrationRunner[F[_]] {
 object MigrationRunner {
   def create[F[_]: Async: Console: ReadFile](db: Resource[F, Session[F]], status: MigrationStatusRepository[F]) = new MigrationRunner[F]:
     override def migrate(family: String, migrations: List[LocalMigration]): F[Unit] =
-      migrations.traverse { migration =>
+      migrations.sorted.traverse { migration =>
         for
           _       <- Console[F].println(show"Performing migration ${migration.toMigration}")
           sql     <- ReadFile[F].readAll(migration.file)

@@ -13,12 +13,12 @@ object MigrationDiffer {
       List(
         Option.when(localMissing.nonEmpty)(
           show"""Local migration folder is missing these migrations found in the remote:
-                |  ${localMissing.map(_.show).mkString("\n  ")}
+                |  ${localMissing.toVector.sorted.map(_.show).mkString("\n  ")}
                 |""".stripMargin
         ),
         Option.when(remoteMissing.nonEmpty)(
           show"""Remote database is missing these migrations found locally:
-                |  ${remoteMissing.map(_.show).mkString("\n  ")}
+                |  ${remoteMissing.toVector.sorted.map(_.show).mkString("\n  ")}
                 |""".stripMargin
         ),
         Option.when(localMissing.isEmpty && remoteMissing.isEmpty)(
